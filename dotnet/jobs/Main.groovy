@@ -2,6 +2,10 @@ def applicationName = 'Grade-Calculator'
 def gitRepository = 'https://github.com/Rinorragi/Grade-Calculator.git'
 def solutionFile = 'GradeCalculator.sln'
 
+def developmentEnvironmentName = 'Dev'
+def customerTestEnvironmentName = 'QA'
+def productionEnvironmentName = 'Prod'
+
 deliveryPipelineView('Pipeline') {
     enableManualTriggers(true)
     showAggregatedPipeline(true)
@@ -14,6 +18,7 @@ job(applicationName + ' Build') {
     deliveryPipelineConfiguration("Build", "Build")
     wrappers {
         deliveryPipelineVersion('build \$BUILD_NUMBER', true)
+		buildName('\$PIPELINE_VERSION')
     }
     scm {
         git {
@@ -30,7 +35,14 @@ job(applicationName + ' Build') {
     steps {
         batchFile('Nuget.exe restore ' + solutionFile + ' -ConfigFile .nuget\\NuGet.Config -NoCache')
 	}
-    publishers {
+	configure { project ->
+			def msbuild = project / builders / 'hudson.plugins.msbuild.MsBuildBuilder'
+			(msbuild / msBuildName).value = '(Default)'
+			(msbuild / msBuildFile).value = solutionFile
+			(msbuild / cmdLineArgs).value = '/p:Configuration=Release /p:DeployOnBuild=True /p:PublishProfile=&quot;CI&quot;'
+			(msbuild / buildVariablesAsProperties).value = 'true'
+	}
+	publishers {
 		downstream(applicationName + ' Unit-Tests', 'SUCCESS')
     }
 }
@@ -44,7 +56,7 @@ job(applicationName + ' Unit-Tests') {
         
 	}
     publishers {
-		downstream(applicationName + ' Dev-Deploy', 'SUCCESS')
+		downstream(applicationName + ' ' + developmentEnvironmentName + '-Deploy', 'SUCCESS')
 		buildPipelineTrigger(applicationName + ' Sonar-Tests') {
 		}
     }
@@ -62,7 +74,7 @@ job(applicationName + ' Sonar-Tests') {
     }
 }
 
-job(applicationName + ' Dev-Deploy') {
+job(applicationName + ' ' + developmentEnvironmentName + '-Deploy') {
     deliveryPipelineConfiguration("Dev", "Deploy")
     wrappers {
         buildName('\$PIPELINE_VERSION')
@@ -71,25 +83,25 @@ job(applicationName + ' Dev-Deploy') {
         
 	}
     publishers {
-		buildPipelineTrigger(applicationName + ' Dev-Integration-Tests') {
+		buildPipelineTrigger(applicationName + ' ' + developmentEnvironmentName + '-EndToEnd-Tests') {
 		}
     }
 }
 
-job(applicationName + ' Dev-Integration-Tests') {
-    deliveryPipelineConfiguration("Dev", "Integration-Tests")
+job(applicationName + ' ' + developmentEnvironmentName + '-EndToEnd-Tests') {
+    deliveryPipelineConfiguration("Dev", "EndToEnd-Tests")
     wrappers {
         buildName('\$PIPELINE_VERSION')
     }
     steps {
     }
     publishers {
-        buildPipelineTrigger(applicationName + ' Staging-Deploy') {
+        buildPipelineTrigger(applicationName + ' ' + customerTestEnvironmentName + '-Deploy') {
         }
     }
 }
 
-job(applicationName + ' Staging-Deploy') {
+job(applicationName + ' ' + customerTestEnvironmentName + '-Deploy') {
     deliveryPipelineConfiguration("Staging", "Deploy")
     wrappers {
         buildName('\$PIPELINE_VERSION')
@@ -98,16 +110,16 @@ job(applicationName + ' Staging-Deploy') {
         
 	}
     publishers {
-		buildPipelineTrigger(applicationName + ' Staging-Integration-Tests') {
+		buildPipelineTrigger(applicationName + ' ' + customerTestEnvironmentName + '-Smoke-Tests') {
 		}
-		buildPipelineTrigger(applicationName + ' Staging-Performance-Tests') {
+		buildPipelineTrigger(applicationName + ' ' + customerTestEnvironmentName + '-Performance-Tests') {
 		}
-		buildPipelineTrigger(applicationName + ' Staging-Security-Tests') {
+		buildPipelineTrigger(applicationName + ' ' + customerTestEnvironmentName + '-Security-Tests') {
 		}
     }
 }
 
-job(applicationName + ' Staging-Performance-Tests') {
+job(applicationName + ' ' + customerTestEnvironmentName + '-Performance-Tests') {
     deliveryPipelineConfiguration("Staging", "Performance-Tests")
     wrappers {
         buildName('\$PIPELINE_VERSION')
@@ -118,7 +130,7 @@ job(applicationName + ' Staging-Performance-Tests') {
     }
 }
 
-job(applicationName + ' Staging-Security-Tests') {
+job(applicationName + ' ' + customerTestEnvironmentName + '-Security-Tests') {
     deliveryPipelineConfiguration("Staging", "Security-Tests")
     wrappers {
         buildName('\$PIPELINE_VERSION')
@@ -129,20 +141,20 @@ job(applicationName + ' Staging-Security-Tests') {
     }
 }
 
-job(applicationName + ' Staging-Integration-Tests') {
-    deliveryPipelineConfiguration("Staging", "Integration-Tests")
+job(applicationName + ' ' + customerTestEnvironmentName + '-Smoke-Tests') {
+    deliveryPipelineConfiguration("Staging", "Smoke-Tests")
     wrappers {
         buildName('\$PIPELINE_VERSION')
     }
     steps {
     }
     publishers {
-        buildPipelineTrigger(applicationName + ' Prod-Deploy') {
+        buildPipelineTrigger(applicationName + ' ' + productionEnvironmentName + '-Deploy') {
         }
     }
 }
 
-job(applicationName + ' Prod-Deploy') {
+job(applicationName + ' ' + productionEnvironmentName + '-Deploy') {
     deliveryPipelineConfiguration("Prod", "Deploy")
     wrappers {
         buildName('\$PIPELINE_VERSION')
@@ -151,13 +163,13 @@ job(applicationName + ' Prod-Deploy') {
         
 	}
     publishers {
-		buildPipelineTrigger(applicationName + ' Prod-Integration-Tests') {
+		buildPipelineTrigger(applicationName + ' ' + productionEnvironmentName + '-Smoke-Tests') {
 		}
     }
 }
 
-job(applicationName + ' Prod-Integration-Tests') {
-    deliveryPipelineConfiguration("Prod", "Integration-Tests")
+job(applicationName + ' ' + productionEnvironmentName + '-Smoke-Tests') {
+    deliveryPipelineConfiguration("Prod", "Smoke-Tests")
     wrappers {
         buildName('\$PIPELINE_VERSION')
     }
