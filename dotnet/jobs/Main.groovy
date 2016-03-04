@@ -1,14 +1,16 @@
-APP_ARTIFACTS = ['target/hello.jar', 'start', 'stop']
+def applicationName = 'Grade-Calculator'
+def gitRepository = 'https://github.com/Rinorragi/Grade-Calculator.git'
+def solutionFile = 'GradeCalculator.sln'
 
 deliveryPipelineView('Pipeline') {
     enableManualTriggers(true)
     showAggregatedPipeline(true)
     pipelines() {
-        component('Hello', 'build')
+        component(applicationName, applicationName + ' Build')
     }
 }
 
-job('build') {
+job(applicationName + ' Build') {
     deliveryPipelineConfiguration("Build", "Build")
     wrappers {
         deliveryPipelineVersion('build \$BUILD_NUMBER', true)
@@ -16,7 +18,7 @@ job('build') {
     scm {
         git {
             remote {
-                url('https://github.com/noidi/hello-java.git')
+                url(gitRepository)
             }
             branch('master')
             clean()
@@ -26,108 +28,141 @@ job('build') {
         scm('*/15 * * * *')
     }
     steps {
-        shell('echo $BUILD_NUMBER > src/main/resources/build.txt')
-        shell('mvn package')
-        shell('mvn verify')
-    }
+        batchFile('Nuget.exe restore ' + solutionFile + ' -ConfigFile .nuget\\NuGet.Config -NoCache')
+	}
     publishers {
-        archiveJunit('target/failsafe-reports/*.xml')
-        archiveArtifacts {
-            APP_ARTIFACTS.collect { pattern(it) }
-            onlyIfSuccessful()
-        }
-        downstream('deploy-dev', 'SUCCESS')
+		downstream(applicationName + ' Unit-Tests', 'SUCCESS')
     }
 }
 
-job('deploy-dev') {
+job(applicationName + ' Unit-Tests') {
+    deliveryPipelineConfiguration("Build", "Unit-Tests")
+    wrappers {
+        buildName('\$PIPELINE_VERSION')
+    }
+    steps {
+        
+	}
+    publishers {
+		downstream(applicationName + ' Dev-Deploy', 'SUCCESS')
+		buildPipelineTrigger(applicationName + ' Sonar-Tests') {
+		}
+    }
+}
+
+job(applicationName + ' Sonar-Tests') {
+    deliveryPipelineConfiguration("Build", "Sonar-Tests")
+    wrappers {
+        buildName('\$PIPELINE_VERSION')
+    }
+    steps {
+        
+	}
+    publishers {
+    }
+}
+
+job(applicationName + ' Dev-Deploy') {
     deliveryPipelineConfiguration("Dev", "Deploy")
     wrappers {
         buildName('\$PIPELINE_VERSION')
     }
     steps {
-        // Don't fail the build even if rsync fails (it's probably because some
-        // files are missing the o+r permission).
-        shell('rsync -av /project/* . || true')
-        copyArtifacts('build') {
-            buildSelector() {
-                upstreamBuild(fallback=true)
-            }
-            includePatterns(*APP_ARTIFACTS)
-            flatten()
-        }
-        shell('ansible-playbook -l dev deploy.yml')
-    }
+        
+	}
     publishers {
-        buildPipelineTrigger('deploy-test') {
-        }
+		buildPipelineTrigger(applicationName + ' Dev-Integration-Tests') {
+		}
     }
 }
 
-job('deploy-test') {
-    deliveryPipelineConfiguration("Test", "Deploy")
+job(applicationName + ' Dev-Integration-Tests') {
+    deliveryPipelineConfiguration("Dev", "Integration-Tests")
     wrappers {
         buildName('\$PIPELINE_VERSION')
     }
     steps {
-        // Don't fail the build even if rsync fails (it's probably because some
-        // files are missing the o+r permission).
-        shell('rsync -av /project/* . || true')
-        copyArtifacts('build') {
-            buildSelector() {
-                upstreamBuild(fallback=true)
-            }
-            includePatterns(*APP_ARTIFACTS)
-            flatten()
-        }
-        shell('ansible-playbook -l test deploy.yml')
     }
     publishers {
-        buildPipelineTrigger('deploy-staging') {
+        buildPipelineTrigger(applicationName + ' Staging-Deploy') {
         }
     }
 }
 
-job('deploy-staging') {
+job(applicationName + ' Staging-Deploy') {
     deliveryPipelineConfiguration("Staging", "Deploy")
     wrappers {
         buildName('\$PIPELINE_VERSION')
     }
     steps {
-        // Don't fail the build even if rsync fails (it's probably because some
-        // files are missing the o+r permission).
-        shell('rsync -av /project/* . || true')
-        copyArtifacts('build') {
-            buildSelector() {
-                upstreamBuild(fallback=true)
-            }
-            includePatterns(*APP_ARTIFACTS)
-            flatten()
-        }
-        shell('ansible-playbook -l staging deploy.yml')
+        
+	}
+    publishers {
+		buildPipelineTrigger(applicationName + ' Staging-Integration-Tests') {
+		}
+		buildPipelineTrigger(applicationName + ' Staging-Performance-Tests') {
+		}
+		buildPipelineTrigger(applicationName + ' Staging-Security-Tests') {
+		}
+    }
+}
+
+job(applicationName + ' Staging-Performance-Tests') {
+    deliveryPipelineConfiguration("Staging", "Performance-Tests")
+    wrappers {
+        buildName('\$PIPELINE_VERSION')
+    }
+    steps {
     }
     publishers {
-        buildPipelineTrigger('deploy-prod') {
+    }
+}
+
+job(applicationName + ' Staging-Security-Tests') {
+    deliveryPipelineConfiguration("Staging", "Security-Tests")
+    wrappers {
+        buildName('\$PIPELINE_VERSION')
+    }
+    steps {
+    }
+    publishers {
+    }
+}
+
+job(applicationName + ' Staging-Integration-Tests') {
+    deliveryPipelineConfiguration("Staging", "Integration-Tests")
+    wrappers {
+        buildName('\$PIPELINE_VERSION')
+    }
+    steps {
+    }
+    publishers {
+        buildPipelineTrigger(applicationName + ' Prod-Deploy') {
         }
     }
 }
 
-job('deploy-prod') {
+job(applicationName + ' Prod-Deploy') {
     deliveryPipelineConfiguration("Prod", "Deploy")
     wrappers {
         buildName('\$PIPELINE_VERSION')
     }
     steps {
-        // Don't fail the build even if rsync fails (it's probably because some
-        // files are missing the o+r permission).
-        shell('rsync -av /project/* . || true')
-        copyArtifacts('build') {
-            buildSelector() {
-                upstreamBuild(fallback=true)
-            }
-            includePatterns(*APP_ARTIFACTS)
-            flatten()
-        }
-        shell('ansible-playbook -l prod deploy.yml')
+        
+	}
+    publishers {
+		buildPipelineTrigger(applicationName + ' Prod-Integration-Tests') {
+		}
+    }
+}
+
+job(applicationName + ' Prod-Integration-Tests') {
+    deliveryPipelineConfiguration("Prod", "Integration-Tests")
+    wrappers {
+        buildName('\$PIPELINE_VERSION')
+    }
+    steps {
+    }
+    publishers {
     }
 }
