@@ -1,10 +1,23 @@
 def applicationName = 'Grade-Calculator'
 def gitRepository = 'https://github.com/Rinorragi/Grade-Calculator.git'
 def solutionFile = 'GradeCalculator.sln'
+def webProjectFolder = 'GradeCalculator'
+def hipchatRoom = 'M$ DevOps'
 
 def developmentEnvironmentName = 'Dev'
 def customerTestEnvironmentName = 'QA'
 def productionEnvironmentName = 'Prod'
+
+def CreateHipChatPublisher(parentPublishers, hcRoom) {
+	parentPublishers.hipChat {
+            rooms(hcRoom)
+            notifyAborted()
+            notifyNotBuilt()
+            notifyUnstable()
+            notifyFailure()
+            notifyBackToNormal()
+    }
+}
 
 deliveryPipelineView('Pipeline') {
     enableManualTriggers(true)
@@ -34,6 +47,7 @@ job(applicationName + ' Build') {
     }
     steps {
         batchFile('Nuget.exe restore ' + solutionFile + ' -ConfigFile .nuget\\NuGet.Config -NoCache')
+		batchFile('gulp_build.bat')
 	}
 	configure { project ->
 			def msbuild = project / builders / 'hudson.plugins.msbuild.MsBuildBuilder'
@@ -43,6 +57,7 @@ job(applicationName + ' Build') {
 			(msbuild / buildVariablesAsProperties).value = 'true'
 	}
 	publishers {
+		CreateHipChatPublisher(delegate,hipchatRoom)
 		downstream(applicationName + ' Unit-Tests', 'SUCCESS')
     }
 }
@@ -56,6 +71,7 @@ job(applicationName + ' Unit-Tests') {
         
 	}
     publishers {
+		CreateHipChatPublisher(delegate,hipchatRoom)
 		downstream(applicationName + ' ' + developmentEnvironmentName + '-Deploy', 'SUCCESS')
 		buildPipelineTrigger(applicationName + ' Sonar-Tests') {
 		}
@@ -71,6 +87,7 @@ job(applicationName + ' Sonar-Tests') {
         
 	}
     publishers {
+		CreateHipChatPublisher(delegate,hipchatRoom)
     }
 }
 
@@ -83,6 +100,7 @@ job(applicationName + ' ' + developmentEnvironmentName + '-Deploy') {
         
 	}
     publishers {
+		CreateHipChatPublisher(delegate,hipchatRoom)
 		buildPipelineTrigger(applicationName + ' ' + developmentEnvironmentName + '-EndToEnd-Tests') {
 		}
     }
@@ -96,6 +114,7 @@ job(applicationName + ' ' + developmentEnvironmentName + '-EndToEnd-Tests') {
     steps {
     }
     publishers {
+		CreateHipChatPublisher(delegate,hipchatRoom)
         buildPipelineTrigger(applicationName + ' ' + customerTestEnvironmentName + '-Deploy') {
         }
     }
@@ -110,6 +129,7 @@ job(applicationName + ' ' + customerTestEnvironmentName + '-Deploy') {
         
 	}
     publishers {
+		CreateHipChatPublisher(delegate,hipchatRoom)
 		buildPipelineTrigger(applicationName + ' ' + customerTestEnvironmentName + '-Smoke-Tests') {
 		}
 		buildPipelineTrigger(applicationName + ' ' + customerTestEnvironmentName + '-Performance-Tests') {
@@ -127,6 +147,7 @@ job(applicationName + ' ' + customerTestEnvironmentName + '-Performance-Tests') 
     steps {
     }
     publishers {
+		CreateHipChatPublisher(delegate,hipchatRoom)
     }
 }
 
@@ -138,6 +159,7 @@ job(applicationName + ' ' + customerTestEnvironmentName + '-Security-Tests') {
     steps {
     }
     publishers {
+		CreateHipChatPublisher(delegate,hipchatRoom)
     }
 }
 
@@ -149,6 +171,7 @@ job(applicationName + ' ' + customerTestEnvironmentName + '-Smoke-Tests') {
     steps {
     }
     publishers {
+		CreateHipChatPublisher(delegate,hipchatRoom)
         buildPipelineTrigger(applicationName + ' ' + productionEnvironmentName + '-Deploy') {
         }
     }
@@ -163,6 +186,7 @@ job(applicationName + ' ' + productionEnvironmentName + '-Deploy') {
         
 	}
     publishers {
+		CreateHipChatPublisher(delegate,hipchatRoom)
 		buildPipelineTrigger(applicationName + ' ' + productionEnvironmentName + '-Smoke-Tests') {
 		}
     }
@@ -176,5 +200,6 @@ job(applicationName + ' ' + productionEnvironmentName + '-Smoke-Tests') {
     steps {
     }
     publishers {
+		CreateHipChatPublisher(delegate,hipchatRoom)
     }
 }
