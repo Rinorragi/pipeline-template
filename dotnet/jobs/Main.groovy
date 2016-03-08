@@ -1,14 +1,20 @@
+// Common parameters, modify to suite your solution
 def applicationName = 'Grade-Calculator'
 def gitRepository = 'https://github.com/Rinorragi/Grade-Calculator.git'
 def solutionFile = 'GradeCalculator.sln'
 def webProjectFolder = 'GradeCalculator'
 def hipchatRoom = 'M$ DevOps'
 
+// Environment naming parameters, adjust if you wish
 def developmentEnvironmentName = 'Dev'
-def customerTestEnvironmentName = 'QA'
+def customerTestEnvironmentName = 'Test'
 def productionEnvironmentName = 'Prod'
+def developmentBuildProfile = 'CI'
+def customerTestBuildProfile = 'Test'
+def productionBuildProfile = 'Prod'
 
-def CreateHipChatPublisher(parentPublishers, hcRoom) {
+// Function to add HipChat publishing to job 
+def createHipChatPublisher(parentPublishers, hcRoom) {
 	parentPublishers.hipChat {
             rooms(hcRoom)
             notifyAborted()
@@ -17,6 +23,17 @@ def CreateHipChatPublisher(parentPublishers, hcRoom) {
             notifyFailure()
             notifyBackToNormal()
     }
+}
+
+// Function to add MSBuild to your job
+def createMSBuild(parentJob, buildFile, buildProfile) {
+	parentJob.configure { project ->
+			def msbuild = project / builders / 'hudson.plugins.msbuild.MsBuildBuilder'
+			(msbuild / msBuildName).value = '(Default)'
+			(msbuild / msBuildFile).value = buildFile
+			(msbuild / cmdLineArgs).value = '/p:Configuration=Release /p:DeployOnBuild=True /p:PublishProfile=&quot;'+buildProfile+'&quot;'
+			(msbuild / buildVariablesAsProperties).value = 'true'
+	}
 }
 
 deliveryPipelineView('Pipeline') {
@@ -49,15 +66,9 @@ job(applicationName + ' Build') {
         batchFile('Nuget.exe restore ' + solutionFile + ' -ConfigFile .nuget\\NuGet.Config -NoCache')
 		batchFile('gulp_build.bat')
 	}
-	configure { project ->
-			def msbuild = project / builders / 'hudson.plugins.msbuild.MsBuildBuilder'
-			(msbuild / msBuildName).value = '(Default)'
-			(msbuild / msBuildFile).value = solutionFile
-			(msbuild / cmdLineArgs).value = '/p:Configuration=Release /p:DeployOnBuild=True /p:PublishProfile=&quot;CI&quot;'
-			(msbuild / buildVariablesAsProperties).value = 'true'
-	}
+	createMSBuild(delegate, solutionFile, developmentBuildProfile)
 	publishers {
-		CreateHipChatPublisher(delegate,hipchatRoom)
+		createHipChatPublisher(delegate,hipchatRoom)
 		downstream(applicationName + ' Unit-Tests', 'SUCCESS')
     }
 }
@@ -71,7 +82,7 @@ job(applicationName + ' Unit-Tests') {
         
 	}
     publishers {
-		CreateHipChatPublisher(delegate,hipchatRoom)
+		createHipChatPublisher(delegate,hipchatRoom)
 		downstream(applicationName + ' ' + developmentEnvironmentName + '-Deploy', 'SUCCESS')
 		buildPipelineTrigger(applicationName + ' Sonar-Tests') {
 		}
@@ -87,7 +98,7 @@ job(applicationName + ' Sonar-Tests') {
         
 	}
     publishers {
-		CreateHipChatPublisher(delegate,hipchatRoom)
+		createHipChatPublisher(delegate,hipchatRoom)
     }
 }
 
@@ -100,7 +111,7 @@ job(applicationName + ' ' + developmentEnvironmentName + '-Deploy') {
         
 	}
     publishers {
-		CreateHipChatPublisher(delegate,hipchatRoom)
+		createHipChatPublisher(delegate,hipchatRoom)
 		buildPipelineTrigger(applicationName + ' ' + developmentEnvironmentName + '-EndToEnd-Tests') {
 		}
     }
@@ -114,7 +125,7 @@ job(applicationName + ' ' + developmentEnvironmentName + '-EndToEnd-Tests') {
     steps {
     }
     publishers {
-		CreateHipChatPublisher(delegate,hipchatRoom)
+		createHipChatPublisher(delegate,hipchatRoom)
         buildPipelineTrigger(applicationName + ' ' + customerTestEnvironmentName + '-Deploy') {
         }
     }
@@ -129,7 +140,7 @@ job(applicationName + ' ' + customerTestEnvironmentName + '-Deploy') {
         
 	}
     publishers {
-		CreateHipChatPublisher(delegate,hipchatRoom)
+		createHipChatPublisher(delegate,hipchatRoom)
 		buildPipelineTrigger(applicationName + ' ' + customerTestEnvironmentName + '-Smoke-Tests') {
 		}
 		buildPipelineTrigger(applicationName + ' ' + customerTestEnvironmentName + '-Performance-Tests') {
@@ -147,7 +158,7 @@ job(applicationName + ' ' + customerTestEnvironmentName + '-Performance-Tests') 
     steps {
     }
     publishers {
-		CreateHipChatPublisher(delegate,hipchatRoom)
+		createHipChatPublisher(delegate,hipchatRoom)
     }
 }
 
@@ -159,7 +170,7 @@ job(applicationName + ' ' + customerTestEnvironmentName + '-Security-Tests') {
     steps {
     }
     publishers {
-		CreateHipChatPublisher(delegate,hipchatRoom)
+		createHipChatPublisher(delegate,hipchatRoom)
     }
 }
 
@@ -171,7 +182,7 @@ job(applicationName + ' ' + customerTestEnvironmentName + '-Smoke-Tests') {
     steps {
     }
     publishers {
-		CreateHipChatPublisher(delegate,hipchatRoom)
+		createHipChatPublisher(delegate,hipchatRoom)
         buildPipelineTrigger(applicationName + ' ' + productionEnvironmentName + '-Deploy') {
         }
     }
@@ -186,7 +197,7 @@ job(applicationName + ' ' + productionEnvironmentName + '-Deploy') {
         
 	}
     publishers {
-		CreateHipChatPublisher(delegate,hipchatRoom)
+		createHipChatPublisher(delegate,hipchatRoom)
 		buildPipelineTrigger(applicationName + ' ' + productionEnvironmentName + '-Smoke-Tests') {
 		}
     }
@@ -200,6 +211,6 @@ job(applicationName + ' ' + productionEnvironmentName + '-Smoke-Tests') {
     steps {
     }
     publishers {
-		CreateHipChatPublisher(delegate,hipchatRoom)
+		createHipChatPublisher(delegate,hipchatRoom)
     }
 }
