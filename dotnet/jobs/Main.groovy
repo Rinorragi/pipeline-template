@@ -49,7 +49,7 @@ def createHipChatPublisher(parentPublishers, hcRoom) {
 // Function to add MSBuild to your job
 def createMSBuild(parentJob, buildFile, buildProfile, shouldDeploy) {
 	parentJob.steps {
-        batchFile('Nuget.exe restore ' + solutionFile + ' -ConfigFile .nuget\\NuGet.Config -NoCache')
+        batchFile('Nuget.exe restore ' + buildFile + ' -ConfigFile .nuget\\NuGet.Config -NoCache')
 		batchFile('gulp_build.bat')
 	}
 	parentJob.configure { project ->
@@ -62,7 +62,7 @@ def createMSBuild(parentJob, buildFile, buildProfile, shouldDeploy) {
 }
 
 def createMSTestRun(parentJob, buildFile, buildProfile, testFile, testDll) {
-	createMSBuild(parentJob, buildFile, buildProfile, False)
+	createMSBuild(parentJob, buildFile, buildProfile, 'False')
 	parentJob.steps {
 		batchFile('del ' + testFile+System.getProperty("line.separator")+'MSTest.exe /testcontainer:'+testDll+' /resultsfile:'+testFile)
 	}
@@ -97,7 +97,7 @@ job(applicationName + ' Build') {
     triggers {
         scm('*/15 * * * *')
     }
-	createMSBuild(delegate, solutionFile, developmentBuildProfile, True)
+	createMSBuild(delegate, solutionFile, developmentBuildProfile, 'True')
 	publishers {
 		createHipChatPublisher(delegate,hipchatRoom)
 		downstream(applicationName + ' Unit-Tests', 'SUCCESS')
@@ -136,7 +136,7 @@ job(applicationName + ' Sonar-Tests') {
 				'/d:sonar.resharper.solutionFile=&quot;'+
 				jobWorkSpacePath+solutionFile+'&quot;'
 	}
-	createMSBuild(delegate, solutionFile, developmentBuildProfile, False)
+	createMSBuild(delegate, solutionFile, developmentBuildProfile, 'False')
 	steps {
         batchFile('&quot;'+resharperPath+'&quot; '+solutionFile+' /o=&quot;%WORKSPACE%/'+sonarResharperReportFile+'&quot;')
 	}
@@ -201,10 +201,15 @@ job(applicationName + ' ' + customerTestEnvironmentName + '-Performance-Tests') 
         buildName('\$PIPELINE_VERSION')
     }
     steps {
+		 batchFile('call '+jmeterPath+' -n -t &quot;%WORKSPACE%\\TestUrls.jmx&quot; -j &quot;%WORKSPACE%\\log.txt&quot;')
     }
     publishers {
 		createHipChatPublisher(delegate,hipchatRoom)
     }
+	configure { project -> 
+			def perfPublish = project / builders / 'hudson.plugins.performance.PerformancePublisher' 
+			(perfPublish / 'parsers' / 'hudson.plugins.performance.JMeterParser' / 'glob').value = 'results\results.jtl'
+	}
 }
 
 job(applicationName + ' ' + customerTestEnvironmentName + '-Security-Tests') {
