@@ -30,18 +30,18 @@ def createHipChatPublisher(parentPublishers, hcRoom) {
 }
 
 // Function to add MSBuild to your job
-def createMSBuild(parentJob, buildFile, buildProfile) {
+def createMSBuild(parentJob, buildFile, buildProfile, shouldDeploy) {
 	parentJob.configure { project ->
 			def msbuild = project / builders / 'hudson.plugins.msbuild.MsBuildBuilder'
 			(msbuild / msBuildName).value = '(Default)'
 			(msbuild / msBuildFile).value = buildFile
-			(msbuild / cmdLineArgs).value = '/p:Configuration=Release /p:DeployOnBuild=True /p:PublishProfile=&quot;'+buildProfile+'&quot;'
+			(msbuild / cmdLineArgs).value = '/p:Configuration=Release /p:DeployOnBuild='+shouldDeploy+' /p:PublishProfile=&quot;'+buildProfile+'&quot;'
 			(msbuild / buildVariablesAsProperties).value = 'true'
 	}
 }
 
 def createMSTestRun(parentJob, buildFile, buildProfile, testFile, testDll) {
-	createMSBuild(parentJob, buildFile, buildProfile)
+	createMSBuild(parentJob, buildFile, buildProfile, False)
 	parentJob.steps {
 		batchFile('del ' + testFile+System.getProperty("line.separator")+'MSTest.exe /testcontainer:'+testDll+' /resultsfile:'+testFile)
 	}
@@ -77,7 +77,7 @@ job(applicationName + ' Build') {
         batchFile('Nuget.exe restore ' + solutionFile + ' -ConfigFile .nuget\\NuGet.Config -NoCache')
 		batchFile('gulp_build.bat')
 	}
-	createMSBuild(delegate, solutionFile, developmentBuildProfile)
+	createMSBuild(delegate, solutionFile, developmentBuildProfile, True)
 	publishers {
 		createHipChatPublisher(delegate,hipchatRoom)
 		downstream(applicationName + ' Unit-Tests', 'SUCCESS')
