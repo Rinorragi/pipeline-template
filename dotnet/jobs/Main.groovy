@@ -67,8 +67,8 @@ def createMSBuild(parentJob, buildFile, buildProfile, shouldDeploy) {
 			def msbuild = project / builders / 'hudson.plugins.msbuild.MsBuildBuilder'
 			(msbuild / msBuildName).value = msbuildName
 			(msbuild / msBuildFile).value = buildFile
-			(msbuild / cmdLineArgs).value = '/p:Configuration=Release /p:DeployOnBuild='+shouldDeploy+' /p:PublishProfile=&quot;'+buildProfile+'&quot;'
-			(msbuild / buildVariablesAsProperties).value = 'true'
+			(msbuild / cmdLineArgs).value = '/p:Configuration=Release /p:DeployOnBuild='+shouldDeploy+' /p:PublishProfile='+buildProfile
+			(msbuild / buildVariablesAsProperties).value = 'false'
 	}
 }
 
@@ -76,13 +76,6 @@ def createMSTestRun(parentJob, buildFile, buildProfile, testFile, testDll) {
 	createMSBuild(parentJob, buildFile, buildProfile, 'False')
 	parentJob.steps {
 		batchFile('del ' + testFile+System.getProperty("line.separator")+'MSTest.exe /testcontainer:'+testDll+' /resultsfile:'+testFile)
-	}
-	parentJob.configure { project ->
-			def msbuild = project / builders / 'hudson.plugins.msbuild.MsBuildBuilder'
-			(msbuild / msBuildName).value = '(Default)'
-			(msbuild / msBuildFile).value = buildFile
-			(msbuild / cmdLineArgs).value = '/p:Configuration=Release /p:DeployOnBuild='+shouldDeploy+' /p:PublishProfile=&quot;'+buildProfile+'&quot;'
-			(msbuild / buildVariablesAsProperties).value = 'true'
 	}
 	parentJob.configure { project -> 
 			def mstestPublish = project / publishers / 'hudson.plugins.mstest.MSTestPublisher' 
