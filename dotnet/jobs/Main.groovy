@@ -29,6 +29,11 @@ def sonarResharperReportFile = 'resharperresults.xml'
 
 // jMeter parameters 
 
+// OWASP-ZAP parameters 
+def zapUrlToScan = 'http://localhost'
+def zapReportFile = 'test.xml'
+def zapReport = '$env:WORKSPACE+&quot;\\'+zapReportFile+'&quot;'
+
 // Jenkins specific
 def jenkinsJobsFolder = 'C:\\Program Files (x86)\\Jenkins\\jobs\\'
 def resharperPath = 'C:\\jetbrains-commandline-tools\\inspectcode.exe'
@@ -133,6 +138,7 @@ job(applicationName + ' Sonar-Tests') {
 			(sonarBegin / projectVersion).value = sonarProjectVersion
 			(sonarBegin / additionalArguments).value = '/d:sonar.resharper.cs.reportPath=&quot;'+
 				jobWorkSpacePath+sonarResharperReportFile+'&quot;'+
+				System.getProperty("line.separator")+
 				'/d:sonar.resharper.solutionFile=&quot;'+
 				jobWorkSpacePath+solutionFile+'&quot;'
 	}
@@ -190,7 +196,7 @@ job(applicationName + ' ' + customerTestEnvironmentName + '-Deploy') {
 		}
 		buildPipelineTrigger(applicationName + ' ' + customerTestEnvironmentName + '-Performance-Tests') {
 		}
-		buildPipelineTrigger(applicationName + ' ' + customerTestEnvironmentName + '-Security-Tests') {
+		buildPipelineTrigger(applicationName + ' ' + customerTestEnvironmentName + '-Security-ZAP-Tests') {
 		}
     }
 }
@@ -212,16 +218,40 @@ job(applicationName + ' ' + customerTestEnvironmentName + '-Performance-Tests') 
 	}
 }
 
-job(applicationName + ' ' + customerTestEnvironmentName + '-Security-Tests') {
-    deliveryPipelineConfiguration("Staging", "Security-Tests")
+job(applicationName + ' ' + customerTestEnvironmentName + '-Security-ZAP-Tests') {
+    deliveryPipelineConfiguration("Staging", "Security-ZAP-Tests")
     wrappers {
         buildName('\$PIPELINE_VERSION')
     }
     steps {
+		powerShell('Set-ZapReportLocation '+zapReport+System.getProperty("line.separator")+
+			'Set-ZapUrlToScan &quot;'+zapUrlToScan+'&quot;'+System.getProperty("line.separator")+
+			'# Ensure that daemon is running'+System.getProperty("line.separator")+
+			'Start-Zap'+System.getProperty("line.separator")+
+			'# Configure policies, this just enables all scanners atm'+System.getProperty("line.separator")+
+			'Set-ZapScanPolicies'+System.getProperty("line.separator")+
+			'# Do spidering against the url'+System.getProperty("line.separator")+
+			'Invoke-ZapSpidering '+System.getProperty("line.separator")+
+			'# Do ajax spidering against the url'+System.getProperty("line.separator")+
+			'Invoke-ZapAjaxSpidering'+System.getProperty("line.separator")+
+			'# Do scanning against the url'+System.getProperty("line.separator")+
+			'Invoke-ZapScanning'+System.getProperty("line.separator")+
+			'# Save report'+System.getProperty("line.separator")+
+			'Save-ZapReport'+System.getProperty("line.separator")+
+			'# Destroy scans'+System.getProperty("line.separator")+
+			'Remove-ZapCurrentSpider'+System.getProperty("line.separator")+
+			'Remove-ZapCurrentScan')
     }
     publishers {
 		createHipChatPublisher(delegate,hipchatRoom)
-    }
+		archiveJunit(zapReportFile) {
+            allowEmptyResults()
+            retainLongStdout()
+            testDataPublishers {
+                publishTestStabilityData()
+            }
+		}
+	}
 }
 
 job(applicationName + ' ' + customerTestEnvironmentName + '-Smoke-Tests') {
