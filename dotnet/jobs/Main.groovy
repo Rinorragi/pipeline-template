@@ -145,6 +145,9 @@ job(applicationName + ' Sonar-Tests') {
 	steps {
         batchFile('&quot;'+resharperPath+'&quot; '+solutionFile+' /o=&quot;%WORKSPACE%/'+sonarResharperReportFile+'&quot;')
 	}
+	configure { project -> 
+			def sonarEnd = project / builders / 'hudson.plugins.sonar.MsBuildSQRunnerEnd' 
+	}
     publishers {
 		createHipChatPublisher(delegate,hipchatRoom)
     }
