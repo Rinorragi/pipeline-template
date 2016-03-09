@@ -27,9 +27,12 @@ def sonarProjectName = applicationName
 def sonarProjectVersion = '1.0'
 def sonarResharperReportFile = 'resharperresults.xml'
 
+// jMeter parameters 
+
 // Jenkins specific
 def jenkinsJobsFolder = 'C:\\Program Files (x86)\\Jenkins\\jobs\\'
-def resharperPath = 'C:\jetbrains-commandline-tools\inspectcode.exe'
+def resharperPath = 'C:\\jetbrains-commandline-tools\\inspectcode.exe'
+def jmeterPath = 'C:\\Tools\\jmeter-perfotrator-master\\apache-jmeter\\bin\\jmeter.bat '
 
 // Function to add HipChat publishing to job 
 def createHipChatPublisher(parentPublishers, hcRoom) {
@@ -74,14 +77,6 @@ def createMSTestRun(parentJob, buildFile, buildProfile, testFile, testDll) {
 			def mstestPublish = project / publishers / 'hudson.plugins.mstest.MSTestPublisher' 
 			(mstestPublish / testResultsFile).value = testFile
 	}
-}
-
-deliveryPipelineView(applicationName + ' Pipeline') {
-    enableManualTriggers(true)
-    showAggregatedPipeline(true)
-    pipelines() {
-        component(applicationName, applicationName + ' Build')
-    }
 }
 
 job(applicationName + ' Build') {
@@ -260,5 +255,13 @@ job(applicationName + ' ' + productionEnvironmentName + '-Smoke-Tests') {
     createMSTestRun(delegate, solutionFile, productionBuildProfile, smokeTestResultsFile, smokeTestDll)
     publishers {
 		createHipChatPublisher(delegate,hipchatRoom)
+    }
+}
+
+deliveryPipelineView(applicationName + ' Pipeline') {
+    enableManualTriggers(true)
+    showAggregatedPipeline(true)
+    pipelines() {
+        component(applicationName, applicationName + ' Build')
     }
 }
