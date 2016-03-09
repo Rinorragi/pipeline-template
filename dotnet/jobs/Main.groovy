@@ -13,6 +13,10 @@ def developmentBuildProfile = 'CI'
 def customerTestBuildProfile = 'Test'
 def productionBuildProfile = 'Prod'
 
+// Test project parameters
+def unitTestResultsFile = 'GradeCalculator.Tests\\testResults.trx'
+def unitTestDll = 'GradeCalculator.Tests\\bin\\Release\\GradeCalculator.dll'
+
 // Function to add HipChat publishing to job 
 def createHipChatPublisher(parentPublishers, hcRoom) {
 	parentPublishers.hipChat {
@@ -36,7 +40,14 @@ def createMSBuild(parentJob, buildFile, buildProfile) {
 	}
 }
 
-deliveryPipelineView('Pipeline') {
+def createMSTestRun(parentJob, buildFile, buildProfile, testFile, testDll) {
+	createMSBuild(parentJob, buildFile, buildProfile)
+	parentJob.steps {
+		batchFile('del ' + testFile+System.getProperty("line.separator")+'MSTest.exe /testcontainer:'+testDll+' /resultsfile:'+testFile)
+	}
+}
+
+deliveryPipelineView(applicationName + ' Pipeline') {
     enableManualTriggers(true)
     showAggregatedPipeline(true)
     pipelines() {
@@ -78,9 +89,8 @@ job(applicationName + ' Unit-Tests') {
     wrappers {
         buildName('\$PIPELINE_VERSION')
     }
-    steps {
-        
-	}
+    createMSTestRun(delegate, solutionFile, developmentBuildProfile, unitTestResultsFile, unitTestDll)
+	
     publishers {
 		createHipChatPublisher(delegate,hipchatRoom)
 		downstream(applicationName + ' ' + developmentEnvironmentName + '-Deploy', 'SUCCESS')
