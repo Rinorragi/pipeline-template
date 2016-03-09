@@ -16,6 +16,20 @@ def productionBuildProfile = 'Prod'
 // Test project parameters
 def unitTestResultsFile = 'GradeCalculator.Tests\\testResults.trx'
 def unitTestDll = 'GradeCalculator.Tests\\bin\\Release\\GradeCalculator.dll'
+def smokeTestResultsFile = 'GradeCalculator.Tests\\testResults.trx'
+def smokeTestDll = 'GradeCalculator.Tests\\bin\\Release\\GradeCalculator.dll'
+def endToEndTestResultsFile = 'GradeCalculator.Tests\\testResults.trx'
+def endToEndTestDll = 'GradeCalculator.Tests\\bin\\Release\\GradeCalculator.dll'
+
+// Sonar parameters 
+def sonarProjectKey = applicationName
+def sonarProjectName = applicationName
+def sonarProjectVersion = '1.0'
+def sonarResharperReportFile = 'resharperresults.xml'
+
+// Jenkins specific
+def jenkinsJobsFolder = 'C:\\Program Files (x86)\\Jenkins\\jobs\\'
+def resharperPath = 'C:\jetbrains-commandline-tools\inspectcode.exe'
 
 // Function to add HipChat publishing to job 
 def createHipChatPublisher(parentPublishers, hcRoom) {
@@ -31,6 +45,10 @@ def createHipChatPublisher(parentPublishers, hcRoom) {
 
 // Function to add MSBuild to your job
 def createMSBuild(parentJob, buildFile, buildProfile, shouldDeploy) {
+	parentJob.steps {
+        batchFile('Nuget.exe restore ' + solutionFile + ' -ConfigFile .nuget\\NuGet.Config -NoCache')
+		batchFile('gulp_build.bat')
+	}
 	parentJob.configure { project ->
 			def msbuild = project / builders / 'hudson.plugins.msbuild.MsBuildBuilder'
 			(msbuild / msBuildName).value = '(Default)'
@@ -44,6 +62,17 @@ def createMSTestRun(parentJob, buildFile, buildProfile, testFile, testDll) {
 	createMSBuild(parentJob, buildFile, buildProfile, False)
 	parentJob.steps {
 		batchFile('del ' + testFile+System.getProperty("line.separator")+'MSTest.exe /testcontainer:'+testDll+' /resultsfile:'+testFile)
+	}
+	parentJob.configure { project ->
+			def msbuild = project / builders / 'hudson.plugins.msbuild.MsBuildBuilder'
+			(msbuild / msBuildName).value = '(Default)'
+			(msbuild / msBuildFile).value = buildFile
+			(msbuild / cmdLineArgs).value = '/p:Configuration=Release /p:DeployOnBuild='+shouldDeploy+' /p:PublishProfile=&quot;'+buildProfile+'&quot;'
+			(msbuild / buildVariablesAsProperties).value = 'true'
+	}
+	parentJob.configure { project -> 
+			def mstestPublish = project / publishers / 'hudson.plugins.mstest.MSTestPublisher' 
+			(mstestPublish / testResultsFile).value = testFile
 	}
 }
 
@@ -73,10 +102,6 @@ job(applicationName + ' Build') {
     triggers {
         scm('*/15 * * * *')
     }
-    steps {
-        batchFile('Nuget.exe restore ' + solutionFile + ' -ConfigFile .nuget\\NuGet.Config -NoCache')
-		batchFile('gulp_build.bat')
-	}
 	createMSBuild(delegate, solutionFile, developmentBuildProfile, True)
 	publishers {
 		createHipChatPublisher(delegate,hipchatRoom)
@@ -104,8 +129,21 @@ job(applicationName + ' Sonar-Tests') {
     wrappers {
         buildName('\$PIPELINE_VERSION')
     }
-    steps {
-        
+	def jobWorkSpacePath = jenkinsJobsFolder+applicationName+' Sonar-Tests\\workspace\\'
+	// Configure begin analysis
+	configure { project -> 
+			def sonarBegin = project / builders / 'hudson.plugins.sonar.MsBuildSQRunnerBegin' 
+			(sonarBegin / projectKey).value = sonarProjectKey
+			(sonarBegin / projectName).value = sonarProjectName
+			(sonarBegin / projectVersion).value = sonarProjectVersion
+			(sonarBegin / additionalArguments).value = '/d:sonar.resharper.cs.reportPath=&quot;'+
+				jobWorkSpacePath+sonarResharperReportFile+'&quot;'+
+				'/d:sonar.resharper.solutionFile=&quot;'+
+				jobWorkSpacePath+solutionFile+'&quot;'
+	}
+	createMSBuild(delegate, solutionFile, developmentBuildProfile, False)
+	steps {
+        batchFile('&quot;'+resharperPath+'&quot; '+solutionFile+' /o=&quot;%WORKSPACE%/'+sonarResharperReportFile+'&quot;')
 	}
     publishers {
 		createHipChatPublisher(delegate,hipchatRoom)
@@ -132,8 +170,7 @@ job(applicationName + ' ' + developmentEnvironmentName + '-EndToEnd-Tests') {
     wrappers {
         buildName('\$PIPELINE_VERSION')
     }
-    steps {
-    }
+    createMSTestRun(delegate, solutionFile, customerTestBuildProfile, endToEndTestResultsFile, endToEndTestDll)
     publishers {
 		createHipChatPublisher(delegate,hipchatRoom)
         buildPipelineTrigger(applicationName + ' ' + customerTestEnvironmentName + '-Deploy') {
@@ -189,8 +226,7 @@ job(applicationName + ' ' + customerTestEnvironmentName + '-Smoke-Tests') {
     wrappers {
         buildName('\$PIPELINE_VERSION')
     }
-    steps {
-    }
+    createMSTestRun(delegate, solutionFile, customerTestBuildProfile, smokeTestResultsFile, smokeTestDll)
     publishers {
 		createHipChatPublisher(delegate,hipchatRoom)
         buildPipelineTrigger(applicationName + ' ' + productionEnvironmentName + '-Deploy') {
@@ -218,8 +254,7 @@ job(applicationName + ' ' + productionEnvironmentName + '-Smoke-Tests') {
     wrappers {
         buildName('\$PIPELINE_VERSION')
     }
-    steps {
-    }
+    createMSTestRun(delegate, solutionFile, productionBuildProfile, smokeTestResultsFile, smokeTestDll)
     publishers {
 		createHipChatPublisher(delegate,hipchatRoom)
     }
