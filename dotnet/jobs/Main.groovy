@@ -22,7 +22,7 @@ def endToEndTestResultsFile = 'GradeCalculator.Tests\\testResults.trx'
 def endToEndTestDll = 'GradeCalculator.Tests\\bin\\Release\\GradeCalculator.dll'
 
 // MSBuild parameters 
-def msbuildName = 'v4.0.30319'
+def msBuildInstallationName = 'v4.0.30319'
 
 // Sonar parameters 
 def sonarProjectKey = applicationName
@@ -55,7 +55,7 @@ def createHipChatPublisher(parentPublishers, hcRoom) {
 }
 
 // Function to add MSBuild to your job
-def createMSBuild(parentJob, buildFile, buildProfile, shouldDeploy) {
+def createMSBuild(parentJob, msBuildInstallationName, buildFile, buildProfile, shouldDeploy) {
 	parentJob.wrappers {
 		preBuildCleanup()
 	}
@@ -65,15 +65,15 @@ def createMSBuild(parentJob, buildFile, buildProfile, shouldDeploy) {
 	}
 	parentJob.configure { project ->
 			def msbuild = project / builders / 'hudson.plugins.msbuild.MsBuildBuilder'
-			(msbuild / msBuildName).value = msbuildName
+			(msbuild / msBuildName).value = msBuildInstallationName
 			(msbuild / msBuildFile).value = buildFile
 			(msbuild / cmdLineArgs).value = '/p:Configuration=Release /p:DeployOnBuild='+shouldDeploy+' /p:PublishProfile='+buildProfile
 			(msbuild / buildVariablesAsProperties).value = 'false'
 	}
 }
 
-def createMSTestRun(parentJob, buildFile, buildProfile, testFile, testDll) {
-	createMSBuild(parentJob, buildFile, buildProfile, 'False')
+def createMSTestRun(parentJob, msBuildInstallationName, buildFile, buildProfile, testFile, testDll) {
+	createMSBuild(parentJob, msBuildInstallationName, buildFile, buildProfile, 'False')
 	parentJob.steps {
 		batchFile('del ' + testFile+System.getProperty("line.separator")+'MSTest.exe /testcontainer:'+testDll+' /resultsfile:'+testFile)
 	}
@@ -101,7 +101,7 @@ job(applicationName + ' Build') {
     triggers {
         scm('*/15 * * * *')
     }
-	createMSBuild(delegate, solutionFile, developmentBuildProfile, 'True')
+	createMSBuild(delegate, msBuildInstallationName, solutionFile, developmentBuildProfile, 'True')
 	publishers {
 		createHipChatPublisher(delegate,hipchatRoom)
 		downstream(applicationName + ' Unit-Tests', 'SUCCESS')
@@ -113,7 +113,7 @@ job(applicationName + ' Unit-Tests') {
     wrappers {
         buildName('\$PIPELINE_VERSION')
     }
-    createMSTestRun(delegate, solutionFile, developmentBuildProfile, unitTestResultsFile, unitTestDll)
+    createMSTestRun(delegate, msBuildInstallationName, solutionFile, developmentBuildProfile, unitTestResultsFile, unitTestDll)
 	
     publishers {
 		createHipChatPublisher(delegate,hipchatRoom)
@@ -141,7 +141,7 @@ job(applicationName + ' Sonar-Tests') {
 				'/d:sonar.resharper.solutionFile=&quot;'+
 				jobWorkSpacePath+solutionFile+'&quot;'
 	}
-	createMSBuild(delegate, solutionFile, developmentBuildProfile, 'False')
+	createMSBuild(delegate, msBuildInstallationName, solutionFile, developmentBuildProfile, 'False')
 	steps {
         batchFile('&quot;'+resharperPath+'&quot; '+solutionFile+' /o=&quot;%WORKSPACE%/'+sonarResharperReportFile+'&quot;')
 	}
@@ -173,7 +173,7 @@ job(applicationName + ' ' + developmentEnvironmentName + '-EndToEnd-Tests') {
     wrappers {
         buildName('\$PIPELINE_VERSION')
     }
-    createMSTestRun(delegate, solutionFile, customerTestBuildProfile, endToEndTestResultsFile, endToEndTestDll)
+    createMSTestRun(delegate, msBuildInstallationName, solutionFile, customerTestBuildProfile, endToEndTestResultsFile, endToEndTestDll)
     publishers {
 		createHipChatPublisher(delegate,hipchatRoom)
         buildPipelineTrigger(applicationName + ' ' + customerTestEnvironmentName + '-Deploy') {
@@ -258,7 +258,7 @@ job(applicationName + ' ' + customerTestEnvironmentName + '-Smoke-Tests') {
     wrappers {
         buildName('\$PIPELINE_VERSION')
     }
-    createMSTestRun(delegate, solutionFile, customerTestBuildProfile, smokeTestResultsFile, smokeTestDll)
+    createMSTestRun(delegate, msBuildInstallationName, solutionFile, customerTestBuildProfile, smokeTestResultsFile, smokeTestDll)
     publishers {
 		createHipChatPublisher(delegate,hipchatRoom)
         buildPipelineTrigger(applicationName + ' ' + productionEnvironmentName + '-Deploy') {
@@ -286,7 +286,7 @@ job(applicationName + ' ' + productionEnvironmentName + '-Smoke-Tests') {
     wrappers {
         buildName('\$PIPELINE_VERSION')
     }
-    createMSTestRun(delegate, solutionFile, productionBuildProfile, smokeTestResultsFile, smokeTestDll)
+    createMSTestRun(delegate, msBuildInstallationName, solutionFile, productionBuildProfile, smokeTestResultsFile, smokeTestDll)
     publishers {
 		createHipChatPublisher(delegate,hipchatRoom)
     }
