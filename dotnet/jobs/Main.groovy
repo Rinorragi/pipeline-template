@@ -21,6 +21,9 @@ def smokeTestDll = 'GradeCalculator.Tests\\bin\\Release\\GradeCalculator.dll'
 def endToEndTestResultsFile = 'GradeCalculator.Tests\\testResults.trx'
 def endToEndTestDll = 'GradeCalculator.Tests\\bin\\Release\\GradeCalculator.dll'
 
+// MSBuild parameters 
+def msbuildName = 'v4.0.30319'
+
 // Sonar parameters 
 def sonarProjectKey = applicationName
 def sonarProjectName = applicationName
@@ -53,13 +56,16 @@ def createHipChatPublisher(parentPublishers, hcRoom) {
 
 // Function to add MSBuild to your job
 def createMSBuild(parentJob, buildFile, buildProfile, shouldDeploy) {
+	parentJob.wrappers {
+		preBuildCleanup()
+	}
 	parentJob.steps {
         batchFile('Nuget.exe restore ' + buildFile + ' -ConfigFile .nuget\\NuGet.Config -NoCache')
 		batchFile('gulp_build.bat')
 	}
 	parentJob.configure { project ->
 			def msbuild = project / builders / 'hudson.plugins.msbuild.MsBuildBuilder'
-			(msbuild / msBuildName).value = '(Default)'
+			(msbuild / msBuildName).value = msbuildName
 			(msbuild / msBuildFile).value = buildFile
 			(msbuild / cmdLineArgs).value = '/p:Configuration=Release /p:DeployOnBuild='+shouldDeploy+' /p:PublishProfile=&quot;'+buildProfile+'&quot;'
 			(msbuild / buildVariablesAsProperties).value = 'true'
